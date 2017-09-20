@@ -1,0 +1,15 @@
+function changeBanner(bannerID) {
+    clearTimeout(changeTimer);
+    // changeTimer = setTimeout(changeBanner, 5000);
+    
+    prefix = "banner_";
+    currBannerElem = document.getElementById(prefix + currentBannerID);
+    bannerToChange = document.getElementById(prefix + bannerID);
+    //var a;
+    //a.x(1);
+    currBannerElem.removeClassName("active");
+    bannerToChange.addClassName("active");
+    currentBannerID = bannerID;
+}
+currentBannerID = 1;
+changeTimer = setTimeout(changeBanner, 1000);

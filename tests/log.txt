@@ -1,0 +1,6 @@
+. test1: 论文中提供的例子，一个html中执行了一个test.js文件
+. test2:　文件夹下面包含各种大小以及行数的JS文件,分别如下：
+         arbitrary.js: 9行
+         deltablue.js : 881行
+         richards.js　: 550行
+         raytrace.js : 902行
