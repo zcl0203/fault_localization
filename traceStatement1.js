@@ -1,7 +1,6 @@
 var trace = [];
 var current_var;
-var script_stack = [];
-var func_stack = [];
+
 
 (function(sandbox) {
 
@@ -19,12 +18,7 @@ var func_stack = [];
 
 
 	function MyAnalysis() {
-
-		this.scriptEnter = function(iid, instrumentedFileName, originalFileName) {
-			script_stack.push(originalFileName);
-		};
-
-
+		
 		this.write = function(iid, name, val, lhs, isGlobal, isScriptLocal) {
 			
 			if(val == null || val == undefined) {
@@ -58,16 +52,7 @@ var func_stack = [];
 				console.log("root cause line number is " + originalLineNum);			
 			}
             return {base: base, offset: offset, skip: false};
-        };
-
-        this.functionEnter = function(iid, f, dis, args) {
-        	func_stack.push(f);
-        };
-
-        this.functionExit = function(iid, returnVal, wrappedExceptionVal) {
-        	// console.log(func_stack);
-        	func_stack.pop();
-        };
+        };      
 
 	}
 	

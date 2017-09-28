@@ -1,0 +1,12 @@
+var a = 0;
+function abc(a){
+    
+     a = null;   //出错点 null
+    
+     return a;
+}
+
+b = abc(a);
+
+b.f();
+
