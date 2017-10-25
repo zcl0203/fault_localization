@@ -3,7 +3,7 @@ var fs = require("fs");
 var esprima = require("esprima");
 
 //step 1 : preparation stage, get all the information we needed
-var fileName = process.argv.splice(2)[0];  //trace saved file
+var fileName = "/home/aiyanxu/experiment/jalangi2-new/fault_localization/tmp/test3/test1.json";  //trace saved file
 var traceData = JSON.parse(fs.readFileSync(fileName, "utf-8"));   //read trace data
 var trace = traceData.trace;                //null trace
 var errorMessage = traceData.errorMessage;  //error point at where the program crash
@@ -46,66 +46,40 @@ function findPrevError(errorMessage) {
 				
 			var loc = parseLine(trace[i].line);  //get the line and column number of the null position in the trace
 			var astBody = ast.body;
+			// console.log(astBody);
 
 			//find the source code of the error point and trace the prev cause point 
 			for(var j = 0; j < astBody.length; j++) {
-				if(astBody[j].loc.start.line === loc.start.line) {
-					if(astBody[j].type === "ExpressionStatement" && astBody[j].expression.type === "AssignmentExpression") {					
-						if(astBody[j].expression.left.name == errorMessage.error_variable) {
-							var right = astBody[j].expression.right;
-							// console.log(right);
-							switch(right.type) {
-								case 'Literal':      //a = num/string/null...
-									if(right.value === null) {
-										errorMessage.error_variable = errorMessage.error_variable;
-										errorMessage.error_line = trace[i].line;
-										errorMessage.error_func = trace[i].func;
-										error_stack.push((JSON.stringify(errorMessage)));
-										trace.pop();
-										rootCause.push(JSON.stringify(errorMessage));
-									}
-									break;
-								case 'Identifier':    // a = b;
-									errorMessage.error_variable = right.name;
+
+				//case 1 : the Statement is an ExpressionStatement, for example : a = ...
+				if(astBody[j].type === "ExpressionStatement" && astBody[j].expression.type === "AssignmentExpression") {
+					
+					if(astBody[j].expression.left.name == errorMessage.error_variable && JSON.stringify(astBody[j].expression.right.loc) == JSON.stringify(loc)) {
+						var right = astBody[j].expression.right;
+						// console.log(right);
+						switch(right.type) {
+							case 'Literal':      //a = num/string/null...
+								if(right.value === null) {
+									errorMessage.error_variable = errorMessage.error_variable;
 									errorMessage.error_line = trace[i].line;
 									errorMessage.error_func = trace[i].func;
-									error_stack.push(JSON.stringify(errorMessage)); 
+									error_stack.push((JSON.stringify(errorMessage)));
 									trace.pop();
-									break;
-								// case ''
-							}
-						}
-					} else if(astBody[j].type === "VariableDeclaration") {
-						for(var k = 0; k < astBody[j].declarations.length; k++) {
-							if(astBody[j].declarations[k].id.name === errorMessage.error_variable) {
-								if(astBody[j].declarations[k].init.type) {
-									switch(astBody[j].declarations[k].init.type) {
-										case 'Literal':      //var a = num/string/null...
-											if(astBody[j].declarations[k].init.value === null) {
-												errorMessage.error_variable = errorMessage.error_variable;
-												errorMessage.error_line = trace[i].line;
-												errorMessage.error_func = trace[i].func;
-												error_stack.push((JSON.stringify(errorMessage)));
-												trace.pop();
-												rootCause.push(JSON.stringify(errorMessage));
-											}
-											break;
-										case 'Identifier':    //var a = b;
-											errorMessage.error_variable = astBody[j].declarations[k].init.name;
-											errorMessage.error_line = trace[i].line;
-											errorMessage.error_func = trace[i].func;
-											error_stack.push(JSON.stringify(errorMessage)); 
-											trace.pop();
-											break;
-										// case ''
-									}
+									rootCause.push(JSON.stringify(errorMessage));
 								}
 								break;
-							}
+							case 'Identifier':    // a = b;
+								errorMessage.error_variable = right.name;
+								errorMessage.error_line = trace[i].line;
+								errorMessage.error_func = trace[i].func;
+								error_stack.push(JSON.stringify(errorMessage)); 
+								trace.pop();
+								break;
+							// case ''
 						}
+						break;    //find the corresponding line of code, break;
 					}
-					break;			
-				}
+				}			
 			}
 			break;
 		}

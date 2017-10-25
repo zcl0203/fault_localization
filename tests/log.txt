@@ -4,3 +4,7 @@
          deltablue.js : 881行
          richards.js　: 550行
          raytrace.js : 902行
+. test3: 文件夹下面包含目前正在进行分析的不同情况的测试用例，具体情况如下：
+	　test1.js: 通过a = b;这种形式传播null值
+	　test2.js: 通过var a = b;这种形式传播null值
+	　test3.js: 通过a = f();函数形式传播null值

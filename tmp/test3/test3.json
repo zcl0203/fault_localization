@@ -1,0 +1,53 @@
+{
+  "trace": [
+    {
+      "func": "global",
+      "name": "x",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:13:5:13:9)"
+    },
+    {
+      "func": "createNull",
+      "name": "a",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:3:6:3:10)"
+    },
+    {
+      "func": "createNull",
+      "name": "b",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:4:6:4:7)"
+    },
+    {
+      "func": "createNull",
+      "name": "c",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:7:6:7:7)"
+    },
+    {
+      "func": "global",
+      "name": "z",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:14:5:14:17)"
+    },
+    {
+      "func": "global",
+      "name": "y",
+      "val": null,
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:15:5:15:6)"
+    }
+  ],
+  "funcRetVar": [
+    {
+      "func": "createNull",
+      "variable": "c",
+      "line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:9:9:9:10)"
+    }
+  ],
+  "errorMessage": {
+    "error_variable": "z",
+    "error_line": "(/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js:16:1:16:4)",
+    "error_func": "global"
+  },
+  "currScript": "/home/aiyanxu/experiment/jalangi2-new/fault_localization/tests/test3/test3.js"
+}
