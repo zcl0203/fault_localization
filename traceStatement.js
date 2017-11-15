@@ -65,22 +65,39 @@ var funcStack = ["global"],
 		};
  
 		this.functionEnter = function(iid, f, dis, args) {
-			currFun = f.name;
+			if(f.name) {
+				currFun = f.name;
+			} else {
+				currFun = curr_read_var.name;
+			}			
 			funcStack.push(currFun);
 		};
 
-		this.read = function(iid, name, val, isGlobal, isScriptLocal) {
-			if(val === null) {
-				var line = getLineNum(iid);
-				curr_read_var = {name:name, line:line};
-			}
-		};
+		// this.invokeFunPre = function(iid, f, base, args, isConstructor, isMethod, functionIid) {
+
+		// }
+		
 
 		this.functionExit = function(iid, returnVal, wrappedExceptionVal) {
 			if(returnVal === null) {
 				funcRetVar.push({func:currFun, variable: curr_read_var.name, line:curr_read_var.line});
 				funcStack.pop();
 				currFun = funcStack[funcStack.length - 1];
+			}
+		};
+
+		// this.invokeFun = function(iid, f, base, args, result, isConstructor, isMethod, functionIid) {
+
+		// }
+
+		this.read = function(iid, name, val, isGlobal, isScriptLocal) {
+
+			if(val === null) {
+				var line = getLineNum(iid);
+				curr_read_var = {name:name, line:line};
+			} else if(typeof val === "function") {
+				var line = getLineNum(iid);
+				curr_read_var = {name:name, line:line};
 			}
 		};
 
