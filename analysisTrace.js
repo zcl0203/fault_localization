@@ -1,6 +1,6 @@
 var fs = require("fs");
 var esprima = require("esprima");
-var readline = require('readline');
+
 
 var traceData = getTrace();
 
@@ -24,7 +24,7 @@ function findRootCause(traceData) {
     var rootCause = [];
     var errorStack = []; //save the propogation router
 
-    const trace = traceData.trace;
+    var trace = traceData.trace;
     var errorMessage = traceData.errorMessage; //error point at where the program crash
     const currScript = traceData.currScript; //the file of the collapsed program
     const funcRetVar = traceData.funcRetVar; //the variable that function return null
@@ -43,17 +43,16 @@ function findRootCause(traceData) {
 }
 
 function findPrevError(errorMessage, trace, currScript, funcRetVar) {
-
+	
     var tr = findTrace(errorMessage, trace); //find the corresponding trace
-    
+  
     var loc = parseLine(tr.line); //get the line and column number of the null position in the trace
     
-    var astbody = findCodeLine(loc, currScript, tr); // get the ast structure of the trace generate line
-    // [errorMessage, rootCause]
+    var astbody = findCodeLine(currScript, loc.start.line); // get the ast structure of the trace generate line
+	
+    // [errorMessage, rootCause]    
+    var result = updateError(errorMessage, astbody, tr, funcRetVar);    
     
-    var result = updateError(errorMessage, astbody, tr, funcRetVar);
-    
-
     return result;
 }
 
@@ -64,6 +63,7 @@ function findPrevError(errorMessage, trace, currScript, funcRetVar) {
 function findTrace(errorMessage, trace) {
     var tr;
     for (var i = trace.length - 1; i >= 0; i--) {
+    	
         if (trace[i].func === errorMessage.error_func && trace[i].name === errorMessage.error_variable) {
             tr = trace[i];
             trace.pop();
@@ -79,57 +79,21 @@ function findTrace(errorMessage, trace) {
  *input: line, fileName
  *output: the corresponding code line
  */
-function findCodeLine(loc, fileName, tr) {
-    var ast = esprima.parseScript(fs.readFileSync(fileName, "utf-8"), { loc: true }); //get the ast of the script, and create ast with line number
-    var astBody = ast.body;
-    var astbody;    
+ function findCodeLine(filePath,lineNum) {
+    var str=fs.readFileSync(filePath,'utf-8');
+    var strArr=str.split("\n");
 
-    //if the code line belongs to global, find the corresponding line directly
-    if (tr.func === "global") {
-        for (var j = 0; j < astBody.length; j++) {
-            if (astBody[j].loc.start.line === loc.start.line) {            	
-                astbody = astBody[j];
-            }
-        }
-    } else { //if the code line belongs to a function, step into the corresponding function
-        for (var j = 0; j < astBody.length; j++) {
-
-            if (loc.start.line >= astBody[j].loc.start.line && loc.end.line <= astBody[j].loc.end.line) {
-                //function declaration   
-                if(astBody[j].type == "FunctionDeclaration") {
-                    var body = astBody[j].body.body;
-                    for (var t = 0; t < body.length; t++) {
-                        if (body[t].loc.start.line === loc.start.line) {
-                            astbody = body[t];
-                        }
-                    }
-                } else if(astBody[j].type == "VariableDeclaration") {    //function expression
-                     for (var k = 0; k < astBody[j].declarations.length; k++) {
-                        if (astBody[j].declarations[k].init && astBody[j].declarations[k].init.type === "FunctionExpression") {
-                            var body = astBody[j].declarations[k].init.body.body;
-                            for (var t = 0; t < body.length; t++) {
-                                if (body[t].loc.start.line === loc.start.line) {
-                                    astbody = body[t];
-                                }
-                            }
-                        }
-                    }
-                }
-                
-            }
-        }
-    }
-
-    return astbody;
-}
+    var ast = esprima.parseScript(strArr[lineNum - 1]);
+    return ast.body[0];  //every time a line of code is accessed
+ }
 
 function updateError(errorMessage, astbody, tr, funcRetVar) {
     var rootCause = [];
-
+    
     if (astbody.type === "ExpressionStatement" && astbody.expression.type === "AssignmentExpression" && astbody.expression.left.name == errorMessage.error_variable) {
-
+    	
         var right = astbody.expression.right;
-        // console.log(right);
+        
         switch (right.type) {
             case 'Literal': //a = num/string/null...
                 if (right.value === null) {
@@ -210,11 +174,6 @@ function updateError(errorMessage, astbody, tr, funcRetVar) {
 
     return [errorMessage, rootCause];
 }
-
-
-
-
-
 
 //preparation stage, get the trace saved in the file
 function getTrace() {
