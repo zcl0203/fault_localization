@@ -8,6 +8,7 @@ var funcStack = ["global"],
 	scriptStack = [],
 	curr_read_var = []; //the data structure is {variable, operation, type, line}
 
+
 (function(sandbox) {
 
 	// get the line number of the iid
@@ -69,6 +70,13 @@ var funcStack = ["global"],
 				currFun = func.name;
 			}
 			funcStack.push(currFun);
+			
+			var line = getLocation(iid);
+			for(var i = 0; i < args.length; i++) {
+				if(args[i] === null) {
+					trace.push({func:currFun, name:{base: "args", offset: i}, val:null, line:line})
+				}
+			}
 		};
 
 		// this.invokeFunPre = function(iid, f, base, args, isConstructor, isMethod, functionIid) {
@@ -78,7 +86,7 @@ var funcStack = ["global"],
 		// 	} else {
 		// 		func = curr_read_var.pop();
 		// 		currFun = func.name;
-		// 	}		
+		// 	}		 
 		// }
 
 		this.functionExit = function(iid, returnVal, wrappedExceptionVal) {

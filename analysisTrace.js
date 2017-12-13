@@ -23,7 +23,7 @@ function findRootCause(traceData) {
 
     var rootCause = [];
     var errorStack = []; //save the propogation router
-
+ 
     var trace = traceData.trace;
     var errorMessage = traceData.errorMessage; //error point at where the program crash
     const currScript = traceData.currScript; //the file of the collapsed program
@@ -36,7 +36,7 @@ function findRootCause(traceData) {
         }
         //every invocation of the function will update the errorMessage
         var result = findPrevError(errorMessage, trace, currScript, funcRetVar); 
-        var errorMessage = result[0];
+        errorMessage = result[0];
 		rootCause = result[1];
     }
     return [rootCause, errorStack];
@@ -45,12 +45,14 @@ function findRootCause(traceData) {
 function findPrevError(errorMessage, trace, currScript, funcRetVar) {
 	
     var tr = findTrace(errorMessage, trace); //find the corresponding trace
+    console.log(tr);
   
     var loc = parseLine(tr.line); //get the line and column number of the null position in the trace
     
     var astbody = findCodeLine(currScript, loc.start.line); // get the ast structure of the trace generate line
 	
-    // [errorMessage, rootCause]    
+    console.log(astbody);
+    // [errorMessage, rootCause]
     var result = updateError(errorMessage, astbody, tr, funcRetVar);    
     
     return result;
@@ -62,9 +64,14 @@ function findPrevError(errorMessage, trace, currScript, funcRetVar) {
  */
 function findTrace(errorMessage, trace) {
     var tr;
+    // convert error variable to object style
+    var obj = varToObj(errorMessage.error_variable);
+    var base = obj[0];
+    var offset = obj[1];
+    
     for (var i = trace.length - 1; i >= 0; i--) {
     	
-        if (trace[i].func === errorMessage.error_func && trace[i].name === errorMessage.error_variable) {
+        if (trace[i].func === errorMessage.error_func && trace[i].name.base === base && trace[i].name.offset === offset) {
             tr = trace[i];
             trace.pop();
             break;
@@ -74,6 +81,21 @@ function findTrace(errorMessage, trace) {
     return tr;
 }
 
+/**
+ *input: variable: a.b.c.b
+ *output: base: a.b.c, offset: b
+ */
+function varToObj(variable) {
+    var variableStack = variable.split(".");
+    if(variableStack.length === 1) {
+        var base = null;
+        var offset = variableStack[0];
+    } else {
+        var base = variableStack.slice(0, variableStack.length - 1).join(".");
+        var offset = variableStack[variableStack.length - 1];
+    }
+    return [base, offset];
+}
 
 /**
  *input: line, fileName
@@ -97,7 +119,7 @@ function updateError(errorMessage, astbody, tr, funcRetVar) {
         switch (right.type) {
             case 'Literal': //a = num/string/null...
                 if (right.value === null) {
-                    errorMessage.error_variable = errorMessage.error_variable;
+                    errorMessage.error_variable = errorMessage.error_variable; 
                     errorMessage.error_line = tr.line;
                     errorMessage.error_func = tr.func;
                     rootCause.push(JSON.stringify(errorMessage));
@@ -128,6 +150,10 @@ function updateError(errorMessage, astbody, tr, funcRetVar) {
                     }
                 }
                 break;
+            case 'MemberExpression': //xx = a.b.x
+                base = right.object;
+                offset = right.property;
+                while
         }
     } else if (astbody.type === "VariableDeclaration") {
         for (var k = 0; k < astbody.declarations.length; k++) {
