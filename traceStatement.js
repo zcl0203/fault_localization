@@ -1,5 +1,6 @@
 var	trace = [],   //store the null variables using [base, offset]
-	funcRetVar = [],	
+	funcRetVar = [],
+	funcArgsVar = [],	
 	errorMessage = {},
 	currScript;    //define the message that need to be saved in the file
 
@@ -34,15 +35,19 @@ var funcStack = ["global"],
 		var data = {
 			trace: trace,
 			funcRetVar: funcRetVar,
+			funcArgsVar: funcArgsVar,
 			errorMessage: errorMessage,
 			currScript: currScript
 		}
 
 		var jsonData = JSON.stringify(data);
 		// console.log(jsonData);
+		var tmpArr = currScript.split("/");
 		
-		file = currScript.split("/").pop().split(".")[0];              //use the relative way to get the file path to make code more flexible
-		var fileName = process.cwd() + '/tmp/test3/' + file + '.json';
+		var file = tmpArr.pop().split(".")[0];              //use the relative way to get the file path to make code more flexible
+		var folder = tmpArr.pop();
+		var fileName = process.cwd() + '/tmp/' + folder + '/' + file + '.json';
+		//console.log(fileName);
 		
 		fs.writeFileSync(fileName, jsonData);
 	}
@@ -61,41 +66,65 @@ var funcStack = ["global"],
 			currScript = scriptStack[scriptStack.length - 1];
 		};
 
-		this.functionEnter = function(iid, f, dis, args) {
-			
+		this.functionEnter = function(iid, f, dis, args) {	
+			var prevFun = currFun;
 			if(f.name) {
 				currFun = f.name;
 			} else {
 				func = curr_read_var.pop();
 				currFun = func.name;
 			}
-			funcStack.push(currFun);
+			funcStack.push(currFun);	
 			
 			var line = getLocation(iid);
 			for(var i = 0; i < args.length; i++) {
 				if(args[i] === null) {
-					trace.push({func:currFun, name:{base: "args", offset: i}, val:null, line:line})
+					trace.push({func:currFun, name:{base: "args", offset: i}, val:null, line:line});
+				}
+			}
+
+			//get the variable passed to the function arguments
+			for(var i = args.length - 1; i >= 0; i--) {
+				if(args[i] === null) {
+					var argVar = getReadVar(i);					
+					funcArgsVar.push({prevFun: prevFun, currFunc: currFun, argVar: argVar, index: i});
 				}
 			}
 		};
 
-		// this.invokeFunPre = function(iid, f, base, args, isConstructor, isMethod, functionIid) {
-		// 	// judge the invoked function is a function or function expression
-		// 	if(f.name) {
-		// 		currFun = f.name;
-		// 	} else {
-		// 		func = curr_read_var.pop();
-		// 		currFun = func.name;
-		// 	}		 
-		// }
+		
+		
+
+		//get all the variables passed to the function invocation
+		function getReadVar(index) {
+			
+			var variables = [], currVariable = [];
+			for(var i = curr_read_var.length -1 ; i >= 0 && curr_read_var[i].type !== 'function'; i--) {
+				
+				if(curr_read_var[i].operation === "getField") {
+					currVariable.unshift(curr_read_var[i]);				
+				} else if(curr_read_var[i].operation === "read") {					
+					if(currVariable.length === 0) {
+						variables.unshift(curr_read_var[i].name);						
+					} else {
+						currVariable.unshift(curr_read_var[i].name);
+						variables.unshift(currVariable.join("."));
+					}
+					currVariable = [];
+				}
+			}
+			
+			return variables[index];
+		}
 
 		this.functionExit = function(iid, returnVal, wrappedExceptionVal) {
 			if(returnVal === null) {
 				var retVar = curr_read_var.pop();
-				funcRetVar.push({func:currFun, variable: retVar.name, line: retVar.line});
-				funcStack.pop();
-				currFun = funcStack[funcStack.length - 1];
+				funcRetVar.push({func:currFun, variable: retVar.name, line: retVar.line});				
 			}
+
+			funcStack.pop();
+			currFun = funcStack[funcStack.length - 1];
 		};
 
 		this.write = function(iid, name, val, lhs, isGlobal, isScriptLocal) {
@@ -132,19 +161,21 @@ var funcStack = ["global"],
 				trace.push({func: currFun, name:{base: consBase, offset: offset}, val: val, line: line});
 				
 			}
-		}
+		};
 
 		this.getField = function(iid, base, offset, val, isComputed, isOpAssign, isMethodCall) {
 			
 			var line = getLocation(iid);
-			curr_read_var.push({name: offset, type: typeof val, line: line, operation: "getfield"});
+			// if(curr_read_var.length >= 5) curr_read_var = [];
+			curr_read_var.push({name: offset, val: val, type: typeof val, line: line, operation: "getfield"});
 			
 		}; 
 
 		this.read = function(iid, name, val, isGlobal, isScriptLocal) {
 
 			var line = getLocation(iid);
-			curr_read_var.push({name:name, type: typeof val, line:line, operation: "read"});	
+			// if(curr_read_var.length >= 5) curr_read_var = [];
+			curr_read_var.push({name:name, val: val, type: typeof val, line:line, operation: "read"});	
 			
 		};
 
@@ -160,6 +191,9 @@ var funcStack = ["global"],
 						break;
 					} else {
 						consBase = temp_var.name + '.' + consBase;
+						if(temp_var.operation === 'read') {
+							break;
+						}						
 					}
 				}
 
@@ -175,7 +209,9 @@ var funcStack = ["global"],
 		};
 		
 		this.putFieldPre = function(iid, base, offset, val, isComputed, isOpAssign) {
+			
 			if(base === null) {                     //if the base is null and get a field of base, then an error will occur in the next step
+				// console.log(curr_read_var);
 				var line = getLocation(iid);
 				var consBase = '';
 				var count = 0;
@@ -191,8 +227,9 @@ var funcStack = ["global"],
 					}
 				}
 				consBase = consBase.split('.');
-				if(count !== 1) {
+				while(count !== 1) {
 					consBase.pop();
+					count--;
 				}
 				consBase.pop();
 				consBase = consBase.join(".");
@@ -202,7 +239,7 @@ var funcStack = ["global"],
 				errorMessage.error_func = currFun;
 				writeTrace();
 			}
-		}
+		};
 		
 	}
 

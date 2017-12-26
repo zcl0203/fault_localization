@@ -1,16 +1,19 @@
 var fs = require("fs");
 var esprima = require("esprima");
 
+var rootCause = [];
+var errorStack = []; //save the propogation router
 
 var traceData = getTrace();
 
-var result = findRootCause(traceData);
+findRootCause(traceData); //update rootCause and errorStack
 
-var rootCause = result[0];
-var errorStack = result[1];
+
 console.log("\n\n");
+console.log("rootCause:");
 console.log(rootCause);
 console.log("\n\n");
+console.log("errorStack:");
 console.log(errorStack);
 console.log("\n\n");
 
@@ -19,15 +22,13 @@ console.log("\n\n");
  * @param1 traceData
  * @return rootCause
  */
-function findRootCause(traceData) {
-
-    var rootCause = [];
-    var errorStack = []; //save the propogation router
+function findRootCause(traceData) {    
  
     var trace = traceData.trace;
     var errorMessage = traceData.errorMessage; //error point at where the program crash
     const currScript = traceData.currScript; //the file of the collapsed program
     const funcRetVar = traceData.funcRetVar; //the variable that function return null
+    const funcArgsVar = traceData.funcArgsVar;
 
     while (!rootCause.length) {
         errorStack.push(JSON.stringify(errorMessage));
@@ -35,34 +36,34 @@ function findRootCause(traceData) {
             break;
         }
         //every invocation of the function will update the errorMessage
-        var result = findPrevError(errorMessage, trace, currScript, funcRetVar); 
+        var result = findPrevError(errorMessage, trace, currScript, funcRetVar, funcArgsVar); 
         errorMessage = result[0];
 		rootCause = result[1];
     }
-    return [rootCause, errorStack];
+   
 }
 
-function findPrevError(errorMessage, trace, currScript, funcRetVar) {
-	
-    var tr = findTrace(errorMessage, trace); //find the corresponding trace
-    console.log(tr);
+function findPrevError(errorMessage, trace, currScript, funcRetVar, funcArgsVar) {
+	//console.log(errorMessage);
+    var tr = findTrace(errorMessage, trace, currScript, funcArgsVar); //find the corresponding trace
+    //console.log(tr);
   
     var loc = parseLine(tr.line); //get the line and column number of the null position in the trace
     
     var astbody = findCodeLine(currScript, loc.start.line); // get the ast structure of the trace generate line
 	
-    console.log(astbody);
+    // console.log(astbody);
     // [errorMessage, rootCause]
-    var result = updateError(errorMessage, astbody, tr, funcRetVar);    
+    var result = updateError(errorMessage, astbody, tr, funcRetVar);
     
     return result;
 }
 
 /**
  *input: errorMessage, trace
- *output: the corresponding trace
+ *output: the corresponding trace 
  */
-function findTrace(errorMessage, trace) {
+function findTrace(errorMessage, trace, currScript, funcArgsVar) {
     var tr;
     // convert error variable to object style
     var obj = varToObj(errorMessage.error_variable);
@@ -71,14 +72,59 @@ function findTrace(errorMessage, trace) {
     
     for (var i = trace.length - 1; i >= 0; i--) {
     	
-        if (trace[i].func === errorMessage.error_func && trace[i].name.base === base && trace[i].name.offset === offset) {
-            tr = trace[i];
-            trace.pop();
-            break;
+        if (trace[i].func === errorMessage.error_func) {
+            if(trace[i].name.base === "args") { 
+
+                var index = getIndexOfFunctionArgs(getLineNum(trace[i].line), offset, currScript); 
+
+                if(index == trace[i].name.offset) {                    
+                    //get the line of function arguments, set the error variable to the arguments passed to the function
+                    var j = funcArgsVar.length - 1;
+                    while(j >= 0) {                         
+                        if(funcArgsVar[j].currFunc === trace[i].func && funcArgsVar[j].index === index) {                           
+                            errorMessage.error_variable = funcArgsVar[j].argVar;
+                            errorMessage.error_func = funcArgsVar[j].prevFun;
+                            errorMessage.error_line = trace[i].line;
+                            errorStack.push(JSON.stringify(errorMessage));
+                            obj = varToObj(errorMessage.error_variable);
+                            base = obj[0];
+                            offset = obj[1];
+                            break;
+                        }
+                        j--;
+                    }
+                }
+            } else if(trace[i].name.base === base && trace[i].name.offset === offset) {               
+                tr = trace[i];
+                trace.pop();
+                break;
+            }
+            
         }
         trace.pop();
     }
     return tr;
+}
+
+/**
+ *input: variable: startLine, the start line of the function body
+ *output: the function 
+*/
+function getIndexOfFunctionArgs(startLine, variable, fileName) {
+    var ast = esprima.parseScript(fs.readFileSync(fileName, "utf-8"), { loc: true }); //get the ast of the script, and create ast with line number
+    var astBody = ast.body;
+
+    for(var i = 0; i < astBody.length; i++) {        
+        
+        if(astBody[i].type === "FunctionDeclaration" && astBody[i].id.loc.start.line == startLine) {           
+            var params = astBody[i].params;
+            for(var j = 0; j < params.length; j++) {
+                if(params[j].name === variable) {
+                    return j;
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -112,7 +158,7 @@ function varToObj(variable) {
 function updateError(errorMessage, astbody, tr, funcRetVar) {
     var rootCause = [];
     
-    if (astbody.type === "ExpressionStatement" && astbody.expression.type === "AssignmentExpression" && astbody.expression.left.name == errorMessage.error_variable) {
+    if (astbody.type === "ExpressionStatement" && astbody.expression.type === "AssignmentExpression") {
     	
         var right = astbody.expression.right;
         
@@ -151,9 +197,18 @@ function updateError(errorMessage, astbody, tr, funcRetVar) {
                 }
                 break;
             case 'MemberExpression': //xx = a.b.x
-                base = right.object;
-                offset = right.property;
-                while
+                var tmpVar = [];
+                var base = right.object;            
+                var offset = right.property;
+                tmpVar.shift(offset.name);
+                while(base.hasOwnProperty(property)) {
+                    tmpVar.shift(base.property.name);
+                    base = base.object;
+                }
+                tmpVar.shift(base.name);
+                tmpVar = tmpVar.join(".");
+                errorMessage.error_variable = tmpVar;
+                errorMessage.error_line = tr.line;
         }
     } else if (astbody.type === "VariableDeclaration") {
         for (var k = 0; k < astbody.declarations.length; k++) {
@@ -193,6 +248,19 @@ function updateError(errorMessage, astbody, tr, funcRetVar) {
                             }
                         }
                         break;
+                    case 'MemberExpression': //var xx = a.b.x
+                        var tmpVar = [];
+                        var base = astbody.declarations[k].init.object;
+                        var offset = astbody.declarations[k].init.property;
+                        tmpVar.shift(offset.name);
+                        while(base.hasOwnProperty(property)) {
+                            tmpVar.shift(base.property.name);
+                            base = base.object;
+                        }
+                        tmpVar.shift(base.name);
+                        tmpVar = tmpVar.join(".");
+                        errorMessage.error_variable = tmpVar;
+                        errorMessage.error_line = tr.line;
                 }
             }
         }
@@ -225,4 +293,8 @@ function parseLine(line) {
 //determine whether a function is a native function
 function isNative(fn) {
     return (/\{\s*\[native code\]\s*\}/).test('' + fn);
+}
+
+function getLineNum(line) {
+    return line.split(":")[1];
 }
