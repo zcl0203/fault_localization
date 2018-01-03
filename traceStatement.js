@@ -18,9 +18,23 @@ var funcStack = ["global"],
 		return location;
 	}
 
-	function getLineNum(line) {
-		return line.split(":")[1];
+	//parse the line number to the format of esprima in order to search for the corresponding code line	
+	function parseLine(line) {
+	    var parseline = line.split(")")[0].split(":");
+	    var loc = {};
+	    loc.start = {};
+	    loc.end = {};
+	    loc.start.line = parseInt(parseline[1]);
+	    loc.start.column = parseInt(parseline[2]);
+	    loc.end.line = parseInt(parseline[3]);
+	    loc.end.column = parseInt(parseline[4]);
+
+	    return loc;
 	}
+
+	// function getLineNum(line) {
+	// 	return line.split(":")[1];
+	// }
 
 	// determine the scope of the variable
 	function writeFlags(isGlobal, isScriptLocal) {
@@ -166,43 +180,48 @@ var funcStack = ["global"],
 		this.getField = function(iid, base, offset, val, isComputed, isOpAssign, isMethodCall) {
 			
 			var line = getLocation(iid);
-			// if(curr_read_var.length >= 5) curr_read_var = [];
-			curr_read_var.push({name: offset, val: val, type: typeof val, line: line, operation: "getfield"});
+			if(curr_read_var.length >= 10) curr_read_var.shift();
+			curr_read_var.push({name: offset, val: val, type: typeof val, line: line, operation: "getfield", isComputed: isComputed});
 			
 		}; 
 
 		this.read = function(iid, name, val, isGlobal, isScriptLocal) {
 
 			var line = getLocation(iid);
-			// if(curr_read_var.length >= 5) curr_read_var = [];
+			if(curr_read_var.length >= 10) curr_read_var.shift();
 			curr_read_var.push({name:name, val: val, type: typeof val, line:line, operation: "read"});	
 			
 		};
 
-		this.getFieldPre = function(iid, base, offset, isComputed, isOpAssign, isMethodCall) {
-
+		this.getFieldPre = function(iid, base, offset, isComputed, isOpAssign, isMethodCall) {			
+			
 			if(base === null) {                   //if the base is null and get a field of base, then an error will occur in the next step
-				var line = getLocation(iid);
+				
+				var loc = parseLine(getLocation(iid));
 				var consBase = '';
-				for(var i = curr_read_var.length - 1; i >= 0; i--) {
+				
+				while(curr_read_var) {
 					var temp_var = curr_read_var.pop();
-					
-					if(getLineNum(temp_var.line) !== getLineNum(line)) {
+					var tempLoc = parseLine(temp_var.line);
+
+					if(tempLoc.start.line !== loc.start.line) {
 						break;
-					} else {
-						consBase = temp_var.name + '.' + consBase;
-						if(temp_var.operation === 'read') {
-							break;
-						}						
+					}
+
+					if(temp_var.operation === "read" && tempLoc.start.column === loc.start.column) {
+						consBase  = temp_var.name + '.' + consBase;
+						break;
+					} else if(temp_var.operation === "getfield") {
+						consBase  = temp_var.name + '.' + consBase;
 					}
 				}
-
+				 
 				consBase = consBase.split('.');
 				consBase.pop();
 				consBase = consBase.join(".");
 				
 				errorMessage.error_variable = consBase;
-				errorMessage.error_line = line;
+				errorMessage.error_line = getLocation(iid);
 				errorMessage.error_func = currFun;
 				writeTrace();
 			}			
@@ -211,8 +230,12 @@ var funcStack = ["global"],
 		this.putFieldPre = function(iid, base, offset, val, isComputed, isOpAssign) {
 			
 			if(base === null) {                     //if the base is null and get a field of base, then an error will occur in the next step
-				// console.log(curr_read_var);
+				console.log(curr_read_var);
 				var line = getLocation(iid);
+				console.log(line);
+				console.log(base);
+				console.log(offset);
+				console.log(val);
 				var consBase = '';
 				var count = 0;
 				for(var i = curr_read_var.length - 1; i >= 0; i--) {
