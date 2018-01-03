@@ -233,17 +233,31 @@ var funcStack = ["global"],
 				var loc = parseLine(getLocation(iid));
 				var consBase = '';
 
-				
-				
+				while(curr_read_var) {
+					var temp_var = curr_read_var.pop();
+					var tempLoc = parseLine(temp_var.line);
+
+					if(tempLoc.start.line !== loc.start.line) {
+						break;
+					}
+
+					if(temp_var.operation === "read" && tempLoc.start.column === loc.start.column) {
+						consBase  = temp_var.name + '.' + consBase;
+						break;
+					} else if(temp_var.operation === "getfield") {
+						if(tempLoc.start.column === loc.start.column) {
+							consBase  = temp_var.name + '.' + consBase;
+						}						
+					}
+				}
 
 
-
-
+				consBase = consBase.split('.');
 				consBase.pop();
 				consBase = consBase.join(".");
-
+				
 				errorMessage.error_variable = consBase;
-				errorMessage.error_line = line
+				errorMessage.error_line = getLocation(iid);
 				errorMessage.error_func = currFun;
 				writeTrace();
 			}
