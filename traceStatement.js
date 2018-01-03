@@ -230,30 +230,15 @@ var funcStack = ["global"],
 		this.putFieldPre = function(iid, base, offset, val, isComputed, isOpAssign) {
 			
 			if(base === null) {                     //if the base is null and get a field of base, then an error will occur in the next step
-				console.log(curr_read_var);
-				var line = getLocation(iid);
-				console.log(line);
-				console.log(base);
-				console.log(offset);
-				console.log(val);
+				var loc = parseLine(getLocation(iid));
 				var consBase = '';
-				var count = 0;
-				for(var i = curr_read_var.length - 1; i >= 0; i--) {
-					var temp_var = curr_read_var.pop();
-					if(getLineNum(temp_var.line) !== getLineNum(line)) {
-						break;
-					} else {
-						if(temp_var.operation === "read") {
-							 count++;
-						}
-						consBase = temp_var.name + '.' + consBase;
-					}
-				}
-				consBase = consBase.split('.');
-				while(count !== 1) {
-					consBase.pop();
-					count--;
-				}
+
+				
+				
+
+
+
+
 				consBase.pop();
 				consBase = consBase.join(".");
 
