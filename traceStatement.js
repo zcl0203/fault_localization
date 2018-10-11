@@ -94,6 +94,8 @@ var funcStack = ["global"],
 			for(var i = 0; i < args.length; i++) {
 				if(args[i] === null) {
 					trace.push({func:currFun, name:{base: "args", offset: i}, val:null, line:line});
+				} else if(args[i] === undefined) {
+					trace.push({func:currFun, name:{base: "args", offset: i}, val:undefined, line:line});
 				}
 			}
 
@@ -134,7 +136,10 @@ var funcStack = ["global"],
 		this.functionExit = function(iid, returnVal, wrappedExceptionVal) {
 			if(returnVal === null) {
 				var retVar = curr_read_var.pop();
-				funcRetVar.push({func:currFun, variable: retVar.name, line: retVar.line});				
+				funcRetVar.push({func:currFun, variable: retVar.name, line: retVar.line, val: "null"});				
+			} else if(returnVal === undefined) {
+				var retVar = curr_read_var.pop();
+				funcRetVar.push({func:currFun, variable: retVar.name, line: retVar.line, val: "undefined"});	
 			}
 
 			funcStack.pop();
@@ -144,6 +149,9 @@ var funcStack = ["global"],
 		this.write = function(iid, name, val, lhs, isGlobal, isScriptLocal) {
 
 			if(val === null) {
+				var line = getLocation(iid);
+				trace.push({func:currFun, name:{base: null, offset: name}, val:val, line:line});
+			} else if(val === undefined) {
 				var line = getLocation(iid);
 				trace.push({func:currFun, name:{base: null, offset: name}, val:val, line:line});
 			}
@@ -173,7 +181,29 @@ var funcStack = ["global"],
 				consBase = consBase.join(".");
 
 				trace.push({func: currFun, name:{base: consBase, offset: offset}, val: val, line: line});
-				
+			} else if(val === undefined) {
+				var line = getLocation(iid);
+				var consBase = '';
+				var count = 0;
+				for(var i = curr_read_var.length - 1; i >= 0; i--) {
+					var temp_var = curr_read_var.pop();
+					if(getLineNum(temp_var.line) !== getLineNum(line)) {
+						break;
+					} else {
+						if(temp_var.operation === "read") {
+							 count++;
+						}
+						consBase = temp_var.name + '.' + consBase;
+					}
+				}
+				consBase = consBase.split('.');
+				if(count !== 1) {
+					consBase.pop();
+				}
+				consBase.pop();
+				consBase = consBase.join(".");
+
+				trace.push({func: currFun, name:{base: consBase, offset: offset}, val: val, line: line});
 			}
 		};
 
@@ -223,8 +253,38 @@ var funcStack = ["global"],
 				errorMessage.error_variable = consBase;
 				errorMessage.error_line = getLocation(iid);
 				errorMessage.error_func = currFun;
+				errorMessage.error_val = base;
 				writeTrace();
-			}			
+			} else if(base === undefined){
+				var loc = parseLine(getLocation(iid));
+				var consBase = '';
+				
+				while(curr_read_var) {
+					var temp_var = curr_read_var.pop();
+					var tempLoc = parseLine(temp_var.line);
+
+					if(tempLoc.start.line !== loc.start.line) {
+						break;
+					}
+
+					if(temp_var.operation === "read" && tempLoc.start.column === loc.start.column) {
+						consBase  = temp_var.name + '.' + consBase;
+						break;
+					} else if(temp_var.operation === "getfield") {
+						consBase  = temp_var.name + '.' + consBase;
+					}
+				}
+				 
+				consBase = consBase.split('.');
+				consBase.pop();
+				consBase = consBase.join(".");
+				
+				errorMessage.error_variable = consBase;
+				errorMessage.error_line = getLocation(iid);
+				errorMessage.error_func = currFun;
+				errorMessage.error_val = base;
+				writeTrace();
+			}
 		};
 		
 		this.putFieldPre = function(iid, base, offset, val, isComputed, isOpAssign) {
@@ -259,6 +319,39 @@ var funcStack = ["global"],
 				errorMessage.error_variable = consBase;
 				errorMessage.error_line = getLocation(iid);
 				errorMessage.error_func = currFun;
+				errorMessage.error_val = base;
+				writeTrace();
+			} else if(base === undefined) {
+				var loc = parseLine(getLocation(iid));
+				var consBase = '';
+
+				while(curr_read_var) {
+					var temp_var = curr_read_var.pop();
+					var tempLoc = parseLine(temp_var.line);
+
+					if(tempLoc.start.line !== loc.start.line) {
+						break;
+					}
+
+					if(temp_var.operation === "read" && tempLoc.start.column === loc.start.column) {
+						consBase  = temp_var.name + '.' + consBase;
+						break;
+					} else if(temp_var.operation === "getfield") {
+						if(tempLoc.start.column === loc.start.column) {
+							consBase  = temp_var.name + '.' + consBase;
+						}						
+					}
+				}
+
+
+				consBase = consBase.split('.');
+				consBase.pop();
+				consBase = consBase.join(".");
+				
+				errorMessage.error_variable = consBase;
+				errorMessage.error_line = getLocation(iid);
+				errorMessage.error_func = currFun;
+				errorMessage.error_val = base;
 				writeTrace();
 			}
 		};
